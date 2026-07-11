@@ -7,6 +7,11 @@
 #include <linux/workqueue.h>
 #include <linux/moduleparam.h>
 
+/* Linux 4.19 predates symbol namespaces. */
+#ifndef MODULE_IMPORT_NS
+#define MODULE_IMPORT_NS(namespace)
+#endif
+
 #include "policy/allowlist.h"
 #include "policy/app_profile.h"
 #include "policy/feature.h"
@@ -73,15 +78,21 @@ __attribute__((naked)) int __init kernelsu_init_early(void)
 struct cred *ksu_cred;
 bool ksu_late_loaded;
 
-#ifdef CONFIG_KSU_DEBUG
+#if defined(CONFIG_KSU_LEGACY_4_19)
+bool allow_shell = true;
+#elif defined(CONFIG_KSU_DEBUG)
 bool allow_shell = true;
 #else
 bool allow_shell = false;
 #endif
+#ifndef CONFIG_KSU_LEGACY_4_19
 module_param(allow_shell, bool, 0);
 
 bool ksu_no_custom_rc = false;
 module_param_named(norc, ksu_no_custom_rc, bool, 0);
+#else
+bool ksu_no_custom_rc = false;
+#endif
 
 int __init kernelsu_init(void)
 {
@@ -140,6 +151,7 @@ int __init kernelsu_init(void)
     if (ksu_late_loaded) {
         pr_info("late load mode, skipping kprobe hooks\n");
 
+#ifndef CONFIG_KSU_LEGACY_4_19
         apply_kernelsu_rules();
         cache_sid();
         setup_ksu_cred();
@@ -148,6 +160,9 @@ int __init kernelsu_init(void)
         // with KSU SELinux domain before enforcing SELinux, so it
         // can continue to access /data/app etc. after enforcement.
         escape_to_root_for_init();
+#else
+        pr_warn("legacy 4.19 late-load: retaining existing permissive SELinux context\n");
+#endif
 
         ksu_allowlist_init();
         ksu_load_allow_list();
@@ -161,10 +176,12 @@ int __init kernelsu_init(void)
         ksu_boot_completed = true;
         track_throne(false);
 
+#ifndef CONFIG_KSU_LEGACY_4_19
         if (!getenforce()) {
             pr_info("Permissive SELinux, enforcing\n");
             setenforce(true);
         }
+#endif
 
     } else {
         ksu_syscall_hook_manager_init();
@@ -180,7 +197,9 @@ int __init kernelsu_init(void)
 
 #ifdef MODULE
 #ifndef CONFIG_KSU_DEBUG
+#ifndef CONFIG_KSU_LEGACY_4_19
     kobject_del(&THIS_MODULE->mkobj.kobj);
+#endif
 #endif
 #endif
     return 0;
@@ -193,8 +212,9 @@ void __exit kernelsu_exit(void)
 
     ksu_supercalls_exit();
 
-    if (!ksu_late_loaded)
-        ksu_ksud_exit();
+    /* ksu_ksud_init() is used by the late-load branch too.  Always tear
+     * down its input_event kprobe before module text can be freed. */
+    ksu_ksud_exit();
 
     // Wait for any in-flight RCU readers (e.g. handler traversing allow_list)
     synchronize_rcu();

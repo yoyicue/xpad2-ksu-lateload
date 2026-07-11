@@ -5,6 +5,19 @@ use std::process::Command;
 
 use crate::utils;
 
+fn is_xpad2_legacy() -> bool {
+    let uname = rustix::system::uname();
+    let release = uname.release().to_string_lossy();
+    let device = Command::new("getprop")
+        .arg("ro.product.device")
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+        .unwrap_or_default();
+
+    release == "4.19.191+" && device == "ls12_mt8797_wifi_64"
+}
+
 /// Find PIDs of processes running in the KernelSU su domain (u:r:ksu:s0).
 /// Returns a list of PIDs excluding our own.
 fn find_su_domain_pids() -> Vec<i32> {
@@ -107,6 +120,14 @@ fn close_ksu_fds() {
 
 pub fn unload() -> Result<()> {
     info!("unload: starting KernelSU unload sequence");
+
+    if is_xpad2_legacy() {
+        info!("unload: XPad2 legacy direct mode; preserving Android services");
+        close_ksu_fds();
+        rustix::system::delete_module(c"kernelsu", 0)?;
+        info!("unload: XPad2 legacy module removed");
+        return Ok(());
+    }
 
     // 0. Switch cgroups so we don't get killed along with our parent shell
     utils::switch_cgroups();

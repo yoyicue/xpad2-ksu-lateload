@@ -6,6 +6,10 @@
 #include "klog.h" // IWYU pragma: keep
 #include "ksu.h"
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+#define selinux_cred(cred) ((struct task_security_struct *)(cred)->security)
+#endif
+
 /*
  * Cached SID values for frequently checked contexts.
  * These are resolved once at init and used for fast u32 comparison
@@ -70,13 +74,20 @@ void setup_ksu_cred(void)
 
 void setenforce(bool enforce)
 {
+#ifdef CONFIG_KSU_LEGACY_4_19
+    return;
+#else
 #ifdef CONFIG_SECURITY_SELINUX_DEVELOP
     selinux_state.enforcing = enforce;
+#endif
 #endif
 }
 
 bool getenforce(void)
 {
+#ifdef CONFIG_KSU_LEGACY_4_19
+    return false;
+#else
 #ifdef CONFIG_SECURITY_SELINUX_DISABLE
     if (selinux_state.disabled) {
         return false;
@@ -87,6 +98,7 @@ bool getenforce(void)
     return selinux_state.enforcing;
 #else
     return true;
+#endif
 #endif
 }
 

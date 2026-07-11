@@ -11,6 +11,10 @@
 #include <linux/uaccess.h>
 #include <linux/version.h>
 
+#ifndef TWA_RESUME
+#define TWA_RESUME true
+#endif
+
 #include "uapi/supercall.h"
 #include "supercall/internal.h"
 #include "arch.h"
@@ -77,9 +81,8 @@ static void ksu_install_fd_tw_func(struct callback_head *cb)
     kfree(tw);
 }
 
-static int reboot_handler_pre(struct kprobe *p, struct pt_regs *regs)
+void ksu_handle_reboot_supercall(const struct pt_regs *real_regs)
 {
-    struct pt_regs *real_regs = PT_REAL_REGS(regs);
     int magic1 = (int)PT_REGS_PARM1(real_regs);
     int magic2 = (int)PT_REGS_PARM2(real_regs);
 
@@ -89,7 +92,7 @@ static int reboot_handler_pre(struct kprobe *p, struct pt_regs *regs)
 
         tw = kzalloc(sizeof(*tw), GFP_ATOMIC);
         if (!tw)
-            return 0;
+            return;
 
         tw->outp = (int __user *)arg4;
         tw->cb.func = ksu_install_fd_tw_func;
@@ -99,6 +102,31 @@ static int reboot_handler_pre(struct kprobe *p, struct pt_regs *regs)
             pr_warn("install fd add task_work failed\n");
         }
     }
+}
+
+bool ksu_handle_reboot_supercall_direct(const struct pt_regs *regs)
+{
+    int magic1 = (int)PT_REGS_PARM1(regs);
+    int magic2 = (int)PT_REGS_PARM2(regs);
+    int __user *outp;
+    int fd;
+
+    if (magic1 != KSU_INSTALL_MAGIC1 || magic2 != KSU_INSTALL_MAGIC2)
+        return false;
+
+    outp = (int __user *)(unsigned long)PT_REGS_SYSCALL_PARM4(regs);
+    fd = ksu_install_fd();
+    if (fd >= 0 && copy_to_user(outp, &fd, sizeof(fd))) {
+        ksu_close_fd(fd);
+        fd = -EFAULT;
+    }
+    pr_info("legacy reboot supercall installed fd: %d\n", fd);
+    return true;
+}
+
+static int reboot_handler_pre(struct kprobe *p, struct pt_regs *regs)
+{
+    ksu_handle_reboot_supercall(PT_REAL_REGS(regs));
 
     return 0;
 }
@@ -107,6 +135,7 @@ static struct kprobe reboot_kp = {
     .symbol_name = REBOOT_SYMBOL,
     .pre_handler = reboot_handler_pre,
 };
+static bool reboot_kp_registered;
 
 void __init ksu_supercalls_init(void)
 {
@@ -114,16 +143,22 @@ void __init ksu_supercalls_init(void)
 
     ksu_supercall_dump_commands();
 
+#ifdef CONFIG_KSU_LEGACY_4_19
+    rc = -ENOSYS;
+#else
     rc = register_kprobe(&reboot_kp);
+#endif
     if (rc) {
         pr_err("reboot kprobe failed: %d\n", rc);
     } else {
+        reboot_kp_registered = true;
         pr_info("reboot kprobe registered successfully\n");
     }
 }
 
 void __exit ksu_supercalls_exit(void)
 {
-    unregister_kprobe(&reboot_kp);
+    if (reboot_kp_registered)
+        unregister_kprobe(&reboot_kp);
     ksu_supercall_cleanup_state();
 }

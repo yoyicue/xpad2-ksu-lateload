@@ -50,7 +50,7 @@ static int ksu_handle_init_mark_tracker(const char __user **filename_user)
 long __nocfi ksu_hook_newfstatat(int orig_nr, const struct pt_regs *regs)
 {
     if (!ksu_su_compat_enabled)
-        return ksu_syscall_table[orig_nr](regs);
+        return ksu_get_original_syscall(orig_nr)(regs);
 
     return ksu_handle_stat_sucompat(orig_nr, (struct pt_regs *)regs);
 }
@@ -58,16 +58,24 @@ long __nocfi ksu_hook_newfstatat(int orig_nr, const struct pt_regs *regs)
 long __nocfi ksu_hook_faccessat(int orig_nr, const struct pt_regs *regs)
 {
     if (!ksu_su_compat_enabled)
-        return ksu_syscall_table[orig_nr](regs);
+        return ksu_get_original_syscall(orig_nr)(regs);
 
     return ksu_handle_faccessat_sucompat(orig_nr, (struct pt_regs *)regs);
 }
 
+#ifdef CONFIG_KSU_LEGACY_4_19
+static bool ksud_execve_enabled = true;
+#else
 DEFINE_STATIC_KEY_TRUE(ksud_execve_key);
+#endif
 
 void ksu_stop_ksud_execve_hook()
 {
+#ifdef CONFIG_KSU_LEGACY_4_19
+    ksud_execve_enabled = false;
+#else
     static_branch_disable(&ksud_execve_key);
+#endif
 }
 
 long __nocfi ksu_hook_execve(int orig_nr, const struct pt_regs *regs)
@@ -78,7 +86,11 @@ long __nocfi ksu_hook_execve(int orig_nr, const struct pt_regs *regs)
     struct ksu_sulog_pending_event *pending_root_execve = NULL;
     long ret;
 
+#ifdef CONFIG_KSU_LEGACY_4_19
+    if (ksud_execve_enabled)
+#else
     if (static_branch_unlikely(&ksud_execve_key))
+#endif
         ksu_execve_hook_ksud(regs);
 
     if (current_euid().val == 0)
@@ -96,7 +108,7 @@ long __nocfi ksu_hook_execve(int orig_nr, const struct pt_regs *regs)
         return ret;
     }
 
-    ret = ksu_syscall_table[orig_nr](regs);
+    ret = ksu_get_original_syscall(orig_nr)(regs);
     ksu_sulog_emit_pending(pending_root_execve, ret, GFP_KERNEL);
     return ret;
 }
@@ -104,7 +116,7 @@ long __nocfi ksu_hook_execve(int orig_nr, const struct pt_regs *regs)
 long __nocfi ksu_hook_setresuid(int orig_nr, const struct pt_regs *regs)
 {
     uid_t old_uid = current_uid().val;
-    long ret = ksu_syscall_table[orig_nr](regs);
+    long ret = ksu_get_original_syscall(orig_nr)(regs);
 
     if (ret < 0)
         return ret;

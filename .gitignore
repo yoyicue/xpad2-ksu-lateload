@@ -8,3 +8,10 @@ AGENTS.md
 __pycache__
 /dist
 /repack-config.json
+/kernel/*.o
+/kernel/*.ko
+/kernel/*.mod
+/kernel/*.mod.c
+/kernel/.*.cmd
+/kernel/Module.symvers
+/kernel/modules.order

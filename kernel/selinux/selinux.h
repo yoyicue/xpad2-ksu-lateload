@@ -29,7 +29,11 @@ bool is_zygote(const struct cred *cred);
 
 bool is_init(const struct cred *cred);
 
+#ifdef CONFIG_KSU_LEGACY_4_19
+static inline void apply_kernelsu_rules(void) {}
+#else
 void apply_kernelsu_rules();
+#endif
 
 int handle_sepolicy(void __user *user_data, u64 data_len);
 

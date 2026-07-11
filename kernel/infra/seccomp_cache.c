@@ -5,8 +5,17 @@
 #include <linux/uaccess.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
+#include <asm/unistd.h>
 #include "klog.h" // IWYU pragma: keep
 #include "infra/seccomp_cache.h"
+
+#ifndef SECCOMP_ARCH_NATIVE_NR
+#define SECCOMP_ARCH_NATIVE_NR __NR_syscalls
+#endif
+#if defined(CONFIG_COMPAT) && !defined(SECCOMP_ARCH_COMPAT)
+#define SECCOMP_ARCH_COMPAT 1
+#define SECCOMP_ARCH_COMPAT_NR __NR_compat_syscalls
+#endif
 
 struct action_cache {
     DECLARE_BITMAP(allow_native, SECCOMP_ARCH_NATIVE_NR);
