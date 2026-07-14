@@ -36,9 +36,15 @@ Verified on physical hardware:
 - late-load from an initially unloaded boot;
 - KernelSU version 32547 and UAPI 2;
 - KernelSU-provided root shell;
-- clean direct `rmmod kernelsu` without reboot;
-- clean `ksud unload` while adbd and zygote remain running;
-- late-load again in the same boot after unload.
+- Manager-enabled package observation on Linux 4.19;
+- the already-installed `me.weishu.kernelsu` Manager reporting working state
+  and KernelSU version 32547;
+- historical development validation also covered removal and same-boot reload.
+
+The removal observations are retained only as historical evidence. Current
+product and test policy forbids online removal or replacement of the loaded
+module: do not execute `ksud unload` or remove `kernelsu` with `rmmod`. Leave
+the module loaded until an ordinary reboot.
 
 The final kernel module imports 93 runtime symbols, with zero missing from the
 verified target's runtime kallsyms.
@@ -55,12 +61,20 @@ logs are intentionally excluded from this public-source copy.
 ## Prebuilt artifacts
 
 ```text
-f7b5da52ca8ca138d33117788226c5d2fca3b8031a6f49fb85e3c33abd7b4ee1  artifacts/kernelsu-xpad2-4.19.191.ko
-3145acec98ba2b31f9b376f50ad139bbab3efd812613d595e2328843382959e0  artifacts/ksud-xpad2
+a99d230975c70c7efe72142770f936cd5e7585cfdd6ba9c8d45807bdf87b3f13  artifacts/kernelsu-xpad2-4.19.191.ko
+8e6fed9f063b9b998f5b0cec8b64f31ad1eea885c528b9e9883ff3f4cd108e06  artifacts/ksud-xpad2
+f7b5da52ca8ca138d33117788226c5d2fca3b8031a6f49fb85e3c33abd7b4ee1  artifacts/kernelsu-xpad2-4.19.191-no-manager.ko
+3145acec98ba2b31f9b376f50ad139bbab3efd812613d595e2328843382959e0  artifacts/ksud-xpad2-no-manager
 ```
 
 The same `.ko` is embedded in `ksud-xpad2` under KMI name
-`xpad2-4.19.191`.
+`xpad2-4.19.191`. The generic artifact names are the current Manager-enabled
+build. The `*-no-manager*` pair preserves the v0.1.0 build for audit and
+rollback comparison; it is not the product default.
+
+No Manager APK is bundled or installed by these artifacts. The late-load
+module only enables KernelSU's Manager integration; installation and package
+identity remain separate operator decisions.
 
 ## Build prerequisites
 
@@ -91,7 +105,6 @@ make -C /path/to/vendor-kernel \
   OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
   CONFIG_KSU=m \
   CONFIG_KSU_LEGACY_4_19=y \
-  CONFIG_KSU_DISABLE_MANAGER=y \
   KCFLAGS="-Wno-strict-prototypes -Wno-int-conversion \
     -Wno-gcc-compat -Wno-missing-prototypes \
     -Wno-declaration-after-statement -Wno-unused-function" \
@@ -152,27 +165,23 @@ late_load: true
 runtime_mode: late-load
 ```
 
-## Unload
+## Historical removal evidence — do not execute
 
-Both paths were validated without changing the boot ID:
+Earlier development runs validated both the userspace removal path and direct
+kernel-module removal without changing the boot ID, followed by a same-boot
+reload. Those results remain useful as implementation-history evidence, but
+they are not current operating instructions.
 
-```sh
-# Preferred userspace path for this exact target:
-adb shell /path/to/temporary-su -c \
-  "/data/local/tmp/ksud-xpad2 unload"
-
-# Direct kernel-module path:
-adb shell /path/to/temporary-su -c "rmmod kernelsu"
-```
-
-The XPad2-specific `ksud unload` path deliberately avoids Android's global
-`stop`/`start` sequence, so it does not stop adbd or zygote.
+The supported lifecycle is now load once and leave the module resident until
+an ordinary reboot. If a loaded module is mismatched, unhealthy, or needs to
+be replaced, stop and reboot; do not attempt online removal or replacement.
 
 ## Important implementation notes
 
 The port includes target-guarded solutions for:
 
 - Linux 4.19 API and feature gaps;
+- a Linux 4.19 `fsnotify` event adapter for Manager package observation;
 - dynamic `sys_call_table` discovery from `el0_svc`;
 - live TTBR1 page-table walking and fixmap writes with readback;
 - direct legacy syscall adapters with preserved originals;

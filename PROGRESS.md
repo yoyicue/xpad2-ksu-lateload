@@ -1,5 +1,11 @@
 # XPad2 KernelSU late-load port progress
 
+> Historical lab journal. Commands and removal results below document past
+> development only; they do not authorize current execution. Current policy
+> forbids `ksud unload`, direct removal of `kernelsu` with `rmmod`, and
+> same-boot module replacement. Leave a loaded module resident until an
+> ordinary reboot.
+
 Date: 2026-07-11
 
 Target: XPad2 `ls12_mt8797_wifi_64`, Android 13 `/260`, Linux
@@ -173,3 +179,33 @@ showed `ksud unload` returning zero while boot ID stayed unchanged, the module
 was removed, and both `adbd` and `zygote` remained `running`. A subsequent
 same-boot late-load restored KernelSU version 32547, UAPI 2, and working
 `ksud debug su` root.
+
+## Manager-enabled product artifacts (2026-07-14)
+
+The initial v0.1.0 artifacts deliberately used
+`CONFIG_KSU_DISABLE_MANAGER=y` while the Linux 4.19 compatibility boundary was
+being established. The product build now enables Manager integration. Its
+remaining compile blocker was the newer `fsnotify` inode-event callback; the
+target-guarded legacy adapter now supplies Linux 4.19's `handle_event`
+signature and routes both API variants through the same bounded
+`packages.list` name check.
+
+The Manager-enabled module and the module embedded in its matching ksud are
+byte-identical:
+
+```text
+a99d230975c70c7efe72142770f936cd5e7585cfdd6ba9c8d45807bdf87b3f13  artifacts/kernelsu-xpad2-4.19.191.ko
+8e6fed9f063b9b998f5b0cec8b64f31ad1eea885c528b9e9883ff3f4cd108e06  artifacts/ksud-xpad2
+```
+
+Offline `cargo fmt --check`, `cargo ndk check`, clippy with warnings denied,
+and release build passed for the matching source tree. Physical-device
+validation loaded the module from an initially unloaded boot, retained SELinux
+enforcing state, exposed KernelSU version 32547/UAPI 2, and the already
+installed `me.weishu.kernelsu` Manager displayed working state. The loader did
+not install or replace the Manager APK.
+
+For provenance, the v0.1.0 Manager-disabled binaries remain under explicit
+`*-no-manager*` names. Current generic artifact names refer to the
+Manager-enabled build. Neither variant may be removed or replaced online;
+leave a loaded module resident until an ordinary reboot.
