@@ -722,6 +722,10 @@ pub fn run() -> Result<()> {
                 println!("lkm: {}", ksucalls::is_lkm());
                 println!("late_load: {}", ksucalls::is_late_load());
                 println!("runtime_mode: {}", ksucalls::runtime_mode());
+                match ksucalls::get_manager_appid() {
+                    std::result::Result::Ok(appid) => println!("manager_appid: {appid}"),
+                    Err(error) => println!("manager_appid: unavailable ({error})"),
+                }
                 println!(
                     "pr_build: {}",
                     (info.flags & ksu_uapi::KSU_GET_INFO_FLAG_PR_BUILD) != 0

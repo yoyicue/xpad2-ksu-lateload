@@ -52,7 +52,10 @@ fn configure_bindgen() {
 }
 
 fn main() {
-    let (code, name) = match get_git_version() {
+    println!("cargo:rerun-if-env-changed=KSU_VERSION_CODE");
+    println!("cargo:rerun-if-env-changed=KSU_VERSION_NAME");
+
+    let (git_code, git_name) = match get_git_version() {
         Ok((code, name)) => (code, name),
         Err(_) => {
             // show warning if git is not installed
@@ -60,6 +63,15 @@ fn main() {
             (0, "0.0.0".to_string())
         }
     };
+    let code = env::var("KSU_VERSION_CODE")
+        .map(|value| {
+            value
+                .parse::<u32>()
+                .expect("KSU_VERSION_CODE must be an unsigned integer")
+        })
+        .unwrap_or(git_code);
+    let name = env::var("KSU_VERSION_NAME").unwrap_or(git_name);
+
     if env::var("KSU_PACKAGE_NAME").is_err() {
         println!("cargo:rustc-env=KSU_PACKAGE_NAME=me.weishu.kernelsu");
     }

@@ -37,8 +37,10 @@ Verified on physical hardware:
 - KernelSU version 32547 and UAPI 2;
 - KernelSU-provided root shell;
 - Manager-enabled package observation on Linux 4.19;
-- the already-installed `me.weishu.kernelsu` Manager reporting working state
-  and KernelSU version 32547;
+- the official production-signed `me.weishu.kernelsu` Manager reporting
+  working state and KernelSU version 32547 after a cold restart;
+- Manager bootstrap and root shells running in `u:r:ksu:s0` while global
+  SELinux remains Enforcing;
 - historical development validation also covered removal and same-boot reload.
 
 The removal observations are retained only as historical evidence. Current
@@ -46,7 +48,7 @@ product and test policy forbids online removal or replacement of the loaded
 module: do not execute `ksud unload` or remove `kernelsu` with `rmmod`. Leave
 the module loaded until an ordinary reboot.
 
-The final kernel module imports 93 runtime symbols, with zero missing from the
+The current kernel module imports 137 runtime symbols, with zero missing from the
 verified target's runtime kallsyms.
 
 ## Repository layout
@@ -61,8 +63,8 @@ logs are intentionally excluded from this public-source copy.
 ## Prebuilt artifacts
 
 ```text
-a99d230975c70c7efe72142770f936cd5e7585cfdd6ba9c8d45807bdf87b3f13  artifacts/kernelsu-xpad2-4.19.191.ko
-8e6fed9f063b9b998f5b0cec8b64f31ad1eea885c528b9e9883ff3f4cd108e06  artifacts/ksud-xpad2
+e930a6929c6cd156f394e6b15bed2258b19205cc17fa3410db7f68cef7b8fb21  artifacts/kernelsu-xpad2-4.19.191.ko
+26ea0f41af159a63a9afdff98963247da9d0bad0363f7e9c937f4cfbcd9f69c6  artifacts/ksud-xpad2
 f7b5da52ca8ca138d33117788226c5d2fca3b8031a6f49fb85e3c33abd7b4ee1  artifacts/kernelsu-xpad2-4.19.191-no-manager.ko
 3145acec98ba2b31f9b376f50ad139bbab3efd812613d595e2328843382959e0  artifacts/ksud-xpad2-no-manager
 ```
@@ -105,6 +107,7 @@ make -C /path/to/vendor-kernel \
   OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
   CONFIG_KSU=m \
   CONFIG_KSU_LEGACY_4_19=y \
+  KSU_VERSION=32547 \
   KCFLAGS="-Wno-strict-prototypes -Wno-int-conversion \
     -Wno-gcc-compat -Wno-missing-prototypes \
     -Wno-declaration-after-statement -Wno-unused-function" \
@@ -122,6 +125,8 @@ install -m 0644 kernel/kernelsu.ko \
 
 ```sh
 export ANDROID_NDK_HOME=/path/to/android-ndk
+export KSU_VERSION_CODE=32547
+export KSU_VERSION_NAME=0.2.1-xpad2
 
 cargo ndk -t arm64-v8a check -p ksud
 cargo ndk -t arm64-v8a clippy -p ksud -- -D warnings

@@ -1,7 +1,11 @@
 #include "selinux.h"
 #include "linux/cred.h"
+#include "linux/fs.h"
+#include "linux/mutex.h"
 #include "linux/sched.h"
+#include "linux/string.h"
 #include "objsec.h"
+#include "security.h"
 #include "linux/version.h"
 #include "klog.h" // IWYU pragma: keep
 #include "ksu.h"
@@ -26,6 +30,62 @@ static u32 cached_su_sid __read_mostly = 0;
 static u32 cached_zygote_sid __read_mostly = 0;
 static u32 cached_init_sid __read_mostly = 0;
 u32 ksu_file_sid __read_mostly = 0;
+
+#ifdef CONFIG_KSU_LEGACY_4_19
+/*
+ * Linux 4.19 keeps the active SELinux state behind selinuxfs instead of the
+ * newer exported policy wrapper.  The OEM kernel hides the selinux_state data
+ * symbol from kallsyms, but selinuxfs stores the same pointer in s_fs_info.
+ * Resolve it through the mounted filesystem so the port does not guess a
+ * KASLR-relative data address.
+ */
+struct ksu_legacy_selinux_fs_info {
+    struct dentry *bool_dir;
+    unsigned int bool_num;
+    char **bool_pending_names;
+    unsigned int *bool_pending_values;
+    struct dentry *class_dir;
+    unsigned long last_class_ino;
+    bool policy_opened;
+    struct dentry *policycap_dir;
+    struct mutex mutex;
+    unsigned long last_ino;
+    struct selinux_state *state;
+    struct super_block *sb;
+};
+
+static struct selinux_state *legacy_selinux_state;
+
+struct selinux_state *ksu_get_selinux_state(void)
+{
+    struct ksu_legacy_selinux_fs_info *fsi;
+    struct selinux_state *state;
+    struct file *file;
+
+    state = READ_ONCE(legacy_selinux_state);
+    if (state)
+        return state;
+
+    file = filp_open("/sys/fs/selinux/enforce", O_RDONLY, 0);
+    if (IS_ERR(file)) {
+        pr_err("legacy SELinux: cannot open selinuxfs: %ld\n", PTR_ERR(file));
+        return NULL;
+    }
+
+    fsi = file_inode(file)->i_sb->s_fs_info;
+    state = fsi ? READ_ONCE(fsi->state) : NULL;
+    filp_close(file, NULL);
+
+    if (!state || !READ_ONCE(state->initialized) || !READ_ONCE(state->ss) || !READ_ONCE(state->avc)) {
+        pr_err("legacy SELinux: invalid state from selinuxfs\n");
+        return NULL;
+    }
+
+    WRITE_ONCE(legacy_selinux_state, state);
+    pr_info("legacy SELinux: state resolved through selinuxfs\n");
+    return state;
+}
+#endif
 
 static int transive_to_domain(const char *domain, struct cred *cred, bool clear_exec_sid)
 {
@@ -59,10 +119,10 @@ static int transive_to_domain(const char *domain, struct cred *cred, bool clear_
 
 void setup_selinux(const char *domain, struct cred *cred)
 {
-    if (transive_to_domain(domain, cred, false)) {
-        pr_err("transive domain failed.\n");
+    if (!transive_to_domain(domain, cred, false))
         return;
-    }
+
+    pr_err("transive domain failed.\n");
 }
 
 void setup_ksu_cred(void)
@@ -86,7 +146,15 @@ void setenforce(bool enforce)
 bool getenforce(void)
 {
 #ifdef CONFIG_KSU_LEGACY_4_19
-    return false;
+    struct selinux_state *state = ksu_get_selinux_state();
+
+    if (!state || state->disabled)
+        return false;
+#ifdef CONFIG_SECURITY_SELINUX_DEVELOP
+    return READ_ONCE(state->enforcing);
+#else
+    return true;
+#endif
 #else
 #ifdef CONFIG_SECURITY_SELINUX_DISABLE
     if (selinux_state.disabled) {

@@ -123,7 +123,10 @@ static void ksu_sys_enter_handler(void *data, struct pt_regs *regs, long id)
 
 void __init ksu_syscall_hook_manager_init(void)
 {
+#if defined(CONFIG_HAVE_SYSCALL_TRACEPOINTS) && !defined(CONFIG_KSU_LEGACY_4_19)
     int ret;
+#endif
+
     pr_info("hook_manager: ksu_hook_manager_init called\n");
 
 #ifdef CONFIG_KRETPROBES

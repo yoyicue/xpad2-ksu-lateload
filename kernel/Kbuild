@@ -25,7 +25,9 @@ ifneq ($(CONFIG_KSU_LEGACY_4_19),y)
 kernelsu-objs += infra/file_wrapper.o
 endif
 kernelsu-objs += infra/event_queue.o
+ifneq ($(CONFIG_KSU_LEGACY_4_19),y)
 kernelsu-objs += infra/seccomp_cache.o
+endif
 ifneq ($(CONFIG_KSU_LEGACY_4_19),y)
 kernelsu-objs += infra/su_mount_ns.o
 endif
@@ -45,10 +47,8 @@ kernelsu-objs += runtime/boot_event.o
 kernelsu-objs += runtime/ksud_integration.o
 
 kernelsu-objs += selinux/selinux.o
-ifneq ($(CONFIG_KSU_LEGACY_4_19),y)
 kernelsu-objs += selinux/rules.o
 kernelsu-objs += selinux/sepolicy.o
-endif
 
 kernelsu-objs += sulog/event.o
 kernelsu-objs += sulog/fd.o

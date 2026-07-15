@@ -1,10 +1,49 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use log::{info, warn};
-use rustix::cstr;
+use std::ffi::CString;
 use std::process::Command;
 
 use crate::module::{handle_updated_modules, prune_modules};
 use crate::{assets, defs, init_event, metamodule, restorecon, utils};
+
+const OFFICIAL_MANAGER_CERT_SIZE: u32 = 0x033b;
+const OFFICIAL_MANAGER_CERT_SHA256: &str =
+    "c371061b19d8c7d7d6133c6a9bafe198fa944e50c1b31c9d8daa8d7f1fc2d2d6";
+
+fn get_manager_appid(package_name: &str) -> Result<u32> {
+    ensure!(
+        package_name == defs::DEFAULT_PACKAGE_NAME,
+        "refusing to pin an untrusted Manager package: {package_name}"
+    );
+
+    let output = Command::new("/system/bin/pm")
+        .args(["path", package_name])
+        .output()
+        .context("query installed Manager APK")?;
+    ensure!(
+        output.status.success(),
+        "PackageManager cannot resolve the installed Manager"
+    );
+    let output = String::from_utf8(output.stdout).context("invalid PackageManager output")?;
+    let apk = output
+        .lines()
+        .filter_map(|line| line.strip_prefix("package:"))
+        .find(|path| path.ends_with("/base.apk"))
+        .context("PackageManager returned no Manager base APK")?;
+    let (cert_size, cert_sha256) = crate::apk_sign::get_apk_signature(apk)
+        .with_context(|| format!("verify installed Manager signature at {apk}"))?;
+    ensure!(
+        cert_size == OFFICIAL_MANAGER_CERT_SIZE && cert_sha256 == OFFICIAL_MANAGER_CERT_SHA256,
+        "installed Manager signature is not trusted"
+    );
+
+    let uid = rustix::fs::stat(format!("/data/data/{package_name}"))
+        .with_context(|| format!("stat /data/data/{package_name}"))?
+        .st_uid as u32;
+    let appid = uid % 100_000;
+    ensure!(appid != 0, "invalid Manager appId derived from uid {uid}");
+    Ok(appid)
+}
 
 fn dump_process_info(label: &str) {
     use rustix::process::{getgid, getgroups, getpid, getuid};
@@ -57,13 +96,27 @@ pub fn run(package_name: &String, kmi: Option<String>, allow_shell: bool) -> Res
             .with_context(|| format!("Failed to get {ko_name} from assets"))?;
 
         // 4. Load kernelsu.ko from memory with manual relocation
-        info!("Loading kernelsu.ko for KMI {kmi}...");
-        let params = if allow_shell {
-            cstr!("allow_shell=1")
-        } else {
-            cstr!("")
+        let manager_appid = match get_manager_appid(package_name) {
+            Ok(appid) => {
+                info!("Verified official Manager appId {appid} for early pinning");
+                Some(appid)
+            }
+            Err(error) => {
+                warn!("Manager early pin unavailable; continuing without it: {error:#}");
+                None
+            }
         };
-        ksuinit::load_module(&ko_data, params).context("Failed to load kernelsu.ko")?;
+        info!("Loading kernelsu.ko for KMI {kmi}...");
+        let mut params = Vec::new();
+        if allow_shell {
+            params.push("allow_shell=1".to_string());
+        }
+        if let Some(appid) = manager_appid {
+            params.push(format!("manager_appid={appid}"));
+        }
+        let params = params.join(" ");
+        let params = CString::new(params).context("invalid module parameters")?;
+        ksuinit::load_module(&ko_data, params.as_c_str()).context("Failed to load kernelsu.ko")?;
         info!("kernelsu.ko loaded successfully!");
         dump_process_info("after load_module");
     }

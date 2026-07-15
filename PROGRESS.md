@@ -209,3 +209,50 @@ For provenance, the v0.1.0 Manager-disabled binaries remain under explicit
 `*-no-manager*` names. Current generic artifact names refer to the
 Manager-enabled build. Neither variant may be removed or replaced online;
 leave a loaded module resident until an ordinary reboot.
+
+## Manager root bootstrap fix (2026-07-15)
+
+v0.2.0 could identify the official Manager and expose a working driver fd to
+its app process, but the Manager's `libksud.so debug su` performs an exec. The
+inherited driver fd was closed at that boundary, after which its fallback
+bootstrap syscall was rejected by the Android app seccomp filter with SIGSYS.
+An early attempt to reuse the `init` SELinux domain was also invalid for this
+firmware because the live policy explicitly denies `init` an
+`execute_no_trans` path for `shell_exec`.
+
+The v0.2.1 legacy path now:
+
+- pins the Manager appId supplied by the trusted loader;
+- installs a non-CLOEXEC driver fd only for the exact Manager
+  `libksud.so debug su` bootstrap;
+- resolves the active 4.19 `selinux_state` through the mounted selinuxfs
+  superblock instead of guessing a hidden KASLR-relative data address;
+- clones the active 4.19 flex-array policydb, adds the standard `ksu` and
+  `ksu_file` types and rules off-lock, then swaps it under the OEM
+  `policy_rwlock` and resets the AVC;
+- excludes the incompatible modern seccomp action-cache implementation.
+
+The final module has 137 undefined runtime imports and all 137 names exist in
+the target runtime kallsyms. Its vermagic is exactly
+`4.19.191 SMP preempt mod_unload modversions aarch64`.
+
+Final physical validation used an ordinary reboot into boot ID
+`552339f0-c1ad-4b3e-96c9-fbb6ae706c46`. `xpad2 0.1.4` rejected the first
+holder round cleanly, obtained temporary root on adaptive round 2/6, and loaded
+the module. The official Manager 32547 was then
+force-stopped and cold-started again. Both launches completed its install,
+debug-su and module-list calls without SIGSYS or `Created process is not a
+shell`. The resulting shell reported:
+
+```text
+uid=0(root) gid=0(root) context=u:r:ksu:s0
+SELinux status: Enforcing
+```
+
+Current product artifacts:
+
+```text
+e930a6929c6cd156f394e6b15bed2258b19205cc17fa3410db7f68cef7b8fb21  artifacts/kernelsu-xpad2-4.19.191.ko
+e930a6929c6cd156f394e6b15bed2258b19205cc17fa3410db7f68cef7b8fb21  userspace/ksud/bin/aarch64/xpad2-4.19.191_kernelsu.ko
+26ea0f41af159a63a9afdff98963247da9d0bad0363f7e9c937f4cfbcd9f69c6  artifacts/ksud-xpad2
+```

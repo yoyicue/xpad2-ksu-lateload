@@ -121,6 +121,12 @@ pub fn grant_root() -> std::io::Result<()> {
     Ok(())
 }
 
+pub fn get_manager_appid() -> std::io::Result<u32> {
+    let mut cmd = ksu_uapi::ksu_get_manager_appid_cmd { appid: 0 };
+    ksuctl(ksu_uapi::KSU_IOCTL_GET_MANAGER_APPID, &raw mut cmd)?;
+    Ok(cmd.appid)
+}
+
 fn report_event(event: u32) {
     let mut cmd = ksu_uapi::ksu_report_event_cmd { event };
     let _ = ksuctl(ksu_uapi::KSU_IOCTL_REPORT_EVENT, &raw mut cmd);

@@ -151,7 +151,6 @@ int __init kernelsu_init(void)
     if (ksu_late_loaded) {
         pr_info("late load mode, skipping kprobe hooks\n");
 
-#ifndef CONFIG_KSU_LEGACY_4_19
         apply_kernelsu_rules();
         cache_sid();
         setup_ksu_cred();
@@ -160,9 +159,6 @@ int __init kernelsu_init(void)
         // with KSU SELinux domain before enforcing SELinux, so it
         // can continue to access /data/app etc. after enforcement.
         escape_to_root_for_init();
-#else
-        pr_warn("legacy 4.19 late-load: retaining existing permissive SELinux context\n");
-#endif
 
         ksu_allowlist_init();
         ksu_load_allow_list();

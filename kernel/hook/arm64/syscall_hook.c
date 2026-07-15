@@ -42,8 +42,7 @@ void ksu_syscall_hook_begin_exit(void)
     smp_mb();
 }
 
-static long ksu_legacy_dispatch(int nr, ksu_syscall_hook_fn fn,
-                                const struct pt_regs *regs)
+static long ksu_legacy_dispatch(int nr, ksu_syscall_hook_fn fn, const struct pt_regs *regs)
 {
     syscall_fn_t orig;
     long ret;
@@ -60,7 +59,9 @@ static long ksu_legacy_dispatch(int nr, ksu_syscall_hook_fn fn,
     return ret;
 }
 #else
-void ksu_syscall_hook_begin_exit(void) { }
+void ksu_syscall_hook_begin_exit(void)
+{
+}
 #endif
 
 syscall_fn_t ksu_get_original_syscall(int nr)
@@ -119,8 +120,7 @@ static syscall_fn_t *ksu_legacy_find_syscall_table(void)
 
         /* ADRP imm21 is encoded as immlo in [30:29] and immhi in
          * [23:5]: imm21 = (immhi << 2) | immlo. */
-        page_off = sign_extend64((((adrp >> 5) & 0x7ffff) << 2) |
-                                 ((adrp >> 29) & 3), 20) << 12;
+        page_off = sign_extend64((((adrp >> 5) & 0x7ffff) << 2) | ((adrp >> 29) & 3), 20) << 12;
         page = ((handler + i * sizeof(u32)) & PAGE_MASK) + page_off;
         imm = (add >> 10) & 0xfff;
         if (add & BIT(22))
@@ -174,11 +174,16 @@ static long __nocfi ksu_legacy_reboot(const struct pt_regs *regs)
 static syscall_fn_t ksu_legacy_adapter(int nr)
 {
     switch (nr) {
-    case __NR_setresuid: return ksu_legacy_setresuid;
-    case __NR_execve: return ksu_legacy_execve;
-    case __NR_newfstatat: return ksu_legacy_newfstatat;
-    case __NR_faccessat: return ksu_legacy_faccessat;
-    default: return NULL;
+    case __NR_setresuid:
+        return ksu_legacy_setresuid;
+    case __NR_execve:
+        return ksu_legacy_execve;
+    case __NR_newfstatat:
+        return ksu_legacy_newfstatat;
+    case __NR_faccessat:
+        return ksu_legacy_faccessat;
+    default:
+        return NULL;
     }
 }
 #endif
@@ -373,7 +378,9 @@ bool ksu_has_syscall_hook(int nr)
 
 void __init ksu_syscall_hook_init(void)
 {
+#ifndef CONFIG_KSU_LEGACY_4_19
     int ni_slot;
+#endif
 
     memset(syscall_hooks, 0, sizeof(syscall_hooks));
 #ifdef CONFIG_KSU_LEGACY_4_19
@@ -403,8 +410,7 @@ void __init ksu_syscall_hook_init(void)
     pr_info("dispatcher installed at slot %d\n", ksu_dispatcher_nr);
 #else
     pr_info("legacy 4.19 direct syscall table mode\n");
-    ksu_syscall_table_hook(__NR_reboot, ksu_legacy_reboot,
-                           &ksu_legacy_orig_reboot);
+    ksu_syscall_table_hook(__NR_reboot, ksu_legacy_reboot, &ksu_legacy_orig_reboot);
 #endif
 }
 
@@ -431,8 +437,7 @@ void __exit ksu_syscall_hook_exit(void)
     mutex_unlock(&hooked_entries_lock);
 
 #ifdef CONFIG_KSU_LEGACY_4_19
-    wait_event(ksu_legacy_drain_wait,
-               atomic_read(&ksu_legacy_active) == 0);
+    wait_event(ksu_legacy_drain_wait, atomic_read(&ksu_legacy_active) == 0);
     pr_info("legacy syscall adapters drained\n");
 #endif
 
