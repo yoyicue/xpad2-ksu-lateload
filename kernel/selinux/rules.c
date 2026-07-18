@@ -653,7 +653,7 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
     synchronize_rcu();
     ksu_destroy_sepolicy(old_pol);
 
-    reset_avc_cache();
+    reset_avc_cache(0);
     ret = success_cmd_count;
     goto out_unlock;
 

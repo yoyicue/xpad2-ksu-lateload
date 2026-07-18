@@ -1,14 +1,18 @@
-# XPad2 KernelSU late-load port
+# XPad2 / XPad3S KernelSU late-load ports
 
-An experimental KernelSU late-load port for the exact XPad2/TALIH PD2
-firmware described below. It loads KernelSU at runtime without replacing the
-boot image.
+Experimental KernelSU late-load ports for the exact XPad2/TALIH PD2 and
+XPad3S/TALIH PD3S firmware described in this repository. They load KernelSU at
+runtime without replacing the boot image.
 
 To obtain the temporary root required by the loader on the verified firmware,
 see [yoyicue/xpad2-ionstack-poc](https://github.com/yoyicue/xpad2-ionstack-poc).
 That project implements the pure-C, host-assisted re-root stage; this project
 starts at the resulting authorized temporary-root boundary and installs the
 runtime KernelSU module.
+
+The XPad2 legacy path remains the release baseline documented below. The
+separate modern GKI path and its physical-device evidence are documented in
+[`XPAD3S.md`](XPAD3S.md).
 
 This repository is based on upstream
 [KernelSU](https://github.com/tiann/KernelSU) commit
@@ -56,6 +60,7 @@ verified target's runtime kallsyms.
 - repository root: upstream KernelSU Git history plus the XPad2 port changes.
 - `artifacts/`: the exact binaries used for final device validation.
 - `PROGRESS.md`: development history, root causes and validation evidence.
+- `XPAD3S.md`: Android 12 5.10 GKI build and XPad3S hardware evidence.
 
 Build caches, OEM modules, full runtime kallsyms dumps and device-specific
 logs are intentionally excluded from this public-source copy.
@@ -67,6 +72,8 @@ e930a6929c6cd156f394e6b15bed2258b19205cc17fa3410db7f68cef7b8fb21  artifacts/kern
 26ea0f41af159a63a9afdff98963247da9d0bad0363f7e9c937f4cfbcd9f69c6  artifacts/ksud-xpad2
 f7b5da52ca8ca138d33117788226c5d2fca3b8031a6f49fb85e3c33abd7b4ee1  artifacts/kernelsu-xpad2-4.19.191-no-manager.ko
 3145acec98ba2b31f9b376f50ad139bbab3efd812613d595e2328843382959e0  artifacts/ksud-xpad2-no-manager
+5e64a90c35b44b8ee3268604020eb31c015ed8b6fb36770e8f07db9ef9a1db7d  artifacts/kernelsu-xpad3s-android12-5.10.ko
+e438d7d47ca9fa7ea4b8f73527309d0ad14e10ae8eded39aa9bb2af254d47cec  artifacts/ksud-xpad3s
 ```
 
 The same `.ko` is embedded in `ksud-xpad2` under KMI name
