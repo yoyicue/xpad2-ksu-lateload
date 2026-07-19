@@ -23,12 +23,19 @@ exact extracted XPad3S kallsyms and had zero missing symbols before loading.
 The following state was verified in one clean boot on 2026-07-18:
 
 - `kernelsu` loaded dynamically and remained `Live` in `/proc/modules`;
-- KernelSU version `32551`, UAPI version `2`;
+- the initial hardware proof used auto-generated KernelSU version `32551`, UAPI version `2`;
 - `lkm: true`, `late_load: true`, runtime mode `late-load`;
 - KernelSU `su` returned UID/GID 0 in `u:r:ksu:s0`;
 - the official `me.weishu.kernelsu` Manager v3.2.5 was signature-accepted,
   pinned as appId `10191`, and obtained the KernelSU driver fd/root;
 - KernelSU applied its policy and restored global SELinux to Enforcing.
+
+The current release candidate rebuilds the same code path with an explicit
+KernelSU version `32547`, matching the official, production-signed Manager
+artifact built from upstream commit `ccfee6dc`. The fork's four port commits
+had incorrectly advanced the Git-count-derived driver number to `32551`
+without changing the Manager ABI. This version-only correction still requires
+one post-reboot physical-device confirmation.
 
 The late-loaded state is intentionally non-persistent. Reboot returns the
 device to the stock kernel state. Do not unload or replace a live module in the
@@ -45,7 +52,7 @@ docker run --rm --privileged \
   -w /github/workspace/kernel \
   ghcr.io/ylarod/ddk-min:android12-5.10-20260313 \
   sh -lc 'git config --global --add safe.directory /github/workspace && \
-    CONFIG_KSU=m CC=clang make && \
+    CONFIG_KSU=m CC=clang make KSU_VERSION=32547 && \
     llvm-strip -d kernelsu.ko'
 ```
 
@@ -67,7 +74,7 @@ cargo ndk -t arm64-v8a check -p ksud
 cargo ndk -t arm64-v8a clippy -p ksud -- -D warnings
 cargo fmt --all -- --check
 
-KSU_VERSION_NAME=0.2.1-xpad3s-gki \
+KSU_VERSION_CODE=32547 KSU_VERSION_NAME=0.2.1-xpad3s-gki \
   cargo ndk -t arm64-v8a build --release -p ksud
 ```
 
@@ -102,7 +109,7 @@ printf 'id\nexit\n' | /data/local/tmp/ksud-xpad3s debug su
 Expected core fields:
 
 ```text
-version: 32551
+version: 32547
 uapi_version: 2
 lkm: true
 late_load: true
@@ -112,8 +119,8 @@ runtime_mode: late-load
 ## Artifacts
 
 ```text
-5e64a90c35b44b8ee3268604020eb31c015ed8b6fb36770e8f07db9ef9a1db7d  artifacts/kernelsu-xpad3s-android12-5.10.ko
-7075d06a731c4b0fd2a6c73a7ae0710f2824db0b6db4eff017f39f5fe32a0001  artifacts/ksud-xpad3s
+b481d4110ef60ddfa7ede99d165a87b7e0072a0aa5c11954dac89402273cfbd5  artifacts/kernelsu-xpad3s-android12-5.10.ko
+9d3e66a4bced4327ae3db35df9425fd63af0b8cb3397f21dbfae287c1a3f40a2  artifacts/ksud-xpad3s
 ```
 
 The Manager APK is not bundled. Install the official Manager separately.

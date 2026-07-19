@@ -11,6 +11,10 @@ XPad3S, invoke it through an already-authorized temporary-root channel:
 
   ksud-xpad3s late-load --kmi android12-5.10 --allow-shell
 
+The driver and ksud version are explicitly pinned to 32547 to match the
+official production-signed Manager from upstream commit ccfee6dc. Do not
+replace it with a Git-count-derived fork version.
+
 The xpad3 control plane can additionally arm the hidden, default-off
 XPAD3_KSU_TRACE_V1 stage trace for reboot diagnostics. Direct users do not
 need to pass that internal argument.
