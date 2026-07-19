@@ -11,6 +11,10 @@ XPad3S, invoke it through an already-authorized temporary-root channel:
 
   ksud-xpad3s late-load --kmi android12-5.10 --allow-shell
 
+The xpad3 control plane can additionally arm the hidden, default-off
+XPAD3_KSU_TRACE_V1 stage trace for reboot diagnostics. Direct users do not
+need to pass that internal argument.
+
 Physical validation covered dynamic module loading, KernelSU root, the
 official v3.2.5 Manager, and restoration of SELinux Enforcing. The change is
 not persistent across reboot. Do not unload or replace a module in a live

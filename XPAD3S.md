@@ -74,6 +74,13 @@ KSU_VERSION_NAME=0.2.1-xpad3s-gki \
 This `ksud` embeds both the new `android12-5.10` module and the unchanged
 `xpad2-4.19.191` legacy module. Selecting a KMI is explicit at runtime.
 
+The xpad3 control plane may also pass the hidden `--trace-file` diagnostic
+argument. It is disabled by default. When enabled, ksud only appends to a
+pre-created, shell-owned 0600 regular file below the xpad3 transaction log
+root. Every stage is synced independently, including immediately before and
+after `init_module`, so a reboot during module initialization leaves a durable
+last-stage boundary for the next boot's log export.
+
 ## Device use
 
 The loader requires an already authorized temporary root and a writable module
@@ -106,7 +113,7 @@ runtime_mode: late-load
 
 ```text
 5e64a90c35b44b8ee3268604020eb31c015ed8b6fb36770e8f07db9ef9a1db7d  artifacts/kernelsu-xpad3s-android12-5.10.ko
-e438d7d47ca9fa7ea4b8f73527309d0ad14e10ae8eded39aa9bb2af254d47cec  artifacts/ksud-xpad3s
+7075d06a731c4b0fd2a6c73a7ae0710f2824db0b6db4eff017f39f5fe32a0001  artifacts/ksud-xpad3s
 ```
 
 The Manager APK is not bundled. Install the official Manager separately.

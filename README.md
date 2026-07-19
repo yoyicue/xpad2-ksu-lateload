@@ -73,7 +73,7 @@ e930a6929c6cd156f394e6b15bed2258b19205cc17fa3410db7f68cef7b8fb21  artifacts/kern
 f7b5da52ca8ca138d33117788226c5d2fca3b8031a6f49fb85e3c33abd7b4ee1  artifacts/kernelsu-xpad2-4.19.191-no-manager.ko
 3145acec98ba2b31f9b376f50ad139bbab3efd812613d595e2328843382959e0  artifacts/ksud-xpad2-no-manager
 5e64a90c35b44b8ee3268604020eb31c015ed8b6fb36770e8f07db9ef9a1db7d  artifacts/kernelsu-xpad3s-android12-5.10.ko
-e438d7d47ca9fa7ea4b8f73527309d0ad14e10ae8eded39aa9bb2af254d47cec  artifacts/ksud-xpad3s
+7075d06a731c4b0fd2a6c73a7ae0710f2824db0b6db4eff017f39f5fe32a0001  artifacts/ksud-xpad3s
 ```
 
 The same `.ko` is embedded in `ksud-xpad2` under KMI name
